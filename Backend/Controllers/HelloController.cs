@@ -9,7 +9,7 @@ namespace Backend.Controllers
         [HttpGet]
         public IActionResult Get()
         {
-            return Ok(new { message = "Hello from .NET backend!" });
+            return Ok(new { message = "Backend is connected successfully" });
         }
     }
 }
