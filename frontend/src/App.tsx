@@ -1,4 +1,13 @@
 import { useEffect, useState } from 'react';
+import { db } from './firebase';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  orderBy,
+  Timestamp
+} from 'firebase/firestore';
 
 function App() {
   const [message, setMessage] = useState('Loading...');
@@ -10,6 +19,7 @@ function App() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState('');
 
+  // Pobranie komunikatu backendowego
   useEffect(() => {
     fetch('http://localhost:5112/api/hello')
       .then(res => res.json())
@@ -17,30 +27,44 @@ function App() {
       .catch(() => setMessage('Error connecting to backend.'));
   }, []);
 
+  // Pobieranie wiadomości z Firestore
   useEffect(() => {
-    const stored = localStorage.getItem('messages');
-    const storedCount = localStorage.getItem('totalAdded');
-    if (stored) setMessages(JSON.parse(stored));
-    if (storedCount) setTotalAdded(Number(storedCount));
+    async function fetchMessages() {
+      try {
+        const q = query(collection(db, 'messages'), orderBy('timestamp', 'asc'));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => doc.data().content as string);
+        setMessages(data);
+        setTotalAdded(data.length);
+      } catch {
+        setFeedback('Błąd pobierania danych z chmury.');
+      }
+    }
+
+    fetchMessages();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('messages', JSON.stringify(messages));
-    localStorage.setItem('totalAdded', totalAdded.toString());
-  }, [messages, totalAdded]);
-
-  const handleAddMessage = () => {
+  // Dodawanie wiadomości do Firestore
+  const handleAddMessage = async () => {
     const trimmed = input.trim();
     if (trimmed.length < 3) {
       setFeedback('Wiadomość musi mieć co najmniej 3 znaki.');
       return;
     }
 
-    setMessages(prev => [...prev, trimmed]);
-    setTotalAdded(prev => prev + 1);
-    setInput('');
-    setFeedback('Wiadomość dodana pomyślnie.');
-    setTimeout(() => setFeedback(null), 2000);
+    try {
+      await addDoc(collection(db, 'messages'), {
+        content: trimmed,
+        timestamp: Timestamp.now()
+      });
+      setMessages(prev => [...prev, trimmed]);
+      setTotalAdded(prev => prev + 1);
+      setInput('');
+      setFeedback('Wiadomość zapisana do chmury.');
+      setTimeout(() => setFeedback(null), 2000);
+    } catch (error) {
+      setFeedback('Błąd zapisu do chmury.');
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -77,6 +101,9 @@ function App() {
     setMessages(prev =>
       prev.map((msg, i) => (i === editingIndex ? editingValue.trim() : msg))
     );
+
+    await updateDoc(doc(db, 'messages', firebaseId), { content: editingValue.trim() })
+
     setEditingIndex(null);
     setEditingValue('');
     setFeedback('Wiadomość zaktualizowana.');
@@ -100,7 +127,7 @@ function App() {
       borderRadius: '8px',
       boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
     }}>
-      <h1 style={{ color: '#333' }}>React + .NET Fullstack App</h1>
+      <h1 style={{ color: '#333' }}>React + .NET + Firebase</h1>
       <p>{message}</p>
 
       <hr />
@@ -131,12 +158,12 @@ function App() {
           cursor: 'pointer'
         }}
       >
-
+        Dodaj
       </button>
 
       {feedback && (
         <p style={{
-          color: feedback.includes('pomyślnie') || feedback.includes('zaktualizowana') ? 'green' : 'red',
+          color: feedback.includes('pomyślnie') || feedback.includes('zaktualizowana') || feedback.includes('chmury') ? 'green' : 'red',
           marginTop: '0.5rem'
         }}>
           {feedback}
@@ -194,7 +221,7 @@ function App() {
                       cursor: 'pointer'
                     }}
                   >
-                    
+                    Zapisz
                   </button>
                 </>
               ) : (
@@ -212,7 +239,7 @@ function App() {
                       cursor: 'pointer'
                     }}
                   >
-                  
+                    Edytuj
                   </button>
                   <button
                     onClick={() => handleDelete(idx)}
@@ -226,7 +253,7 @@ function App() {
                       cursor: 'pointer'
                     }}
                   >
-                    
+                    Usuń
                   </button>
                 </>
               )}
@@ -248,7 +275,7 @@ function App() {
             cursor: 'pointer'
           }}
         >
-        
+          Wyczyść wszystkie
         </button>
       )}
     </div>
