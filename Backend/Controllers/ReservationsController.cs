@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Backend.Models;
+using Backend.Data;
 
 namespace Backend.Controllers
 {
@@ -7,15 +8,23 @@ namespace Backend.Controllers
     [Route("api/[controller]")]
     public class ReservationsController : ControllerBase
     {
-        [HttpPost]
-        public IActionResult CreateReservation([FromBody] ReservationDto reservation)
-        {
-            // Log or save to DB here (mocked for now)
-            Console.WriteLine("New Reservation:");
-            Console.WriteLine($"Room: {reservation.RoomName}, Guests: {reservation.Guests}, Total: {reservation.TotalCost}");
+        private readonly AppDbContext _context;
 
-            // Respond with success
-            return Ok(new { message = "Reservation confirmed successfully." });
+        public ReservationsController(AppDbContext context)
+        {
+            _context = context;
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CreateReservation([FromBody] Reservation reservation)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            _context.Reservations.Add(reservation);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Reservation saved.", id = reservation.Id });
         }
     }
 }
